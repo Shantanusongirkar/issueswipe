@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, useAnimation } from 'framer-motion';
 import { Flame, Star, GitPullRequest, Bookmark, Sparkles, RefreshCw, X, Check, Award, Clock, HelpCircle, Heart, ChevronDown, ListFilter, MessageSquare, MoreHorizontal } from 'lucide-react';
@@ -12,6 +14,7 @@ interface Repository {
   url: string;
   stars: number;
   language: string | null;
+  readmeText?: string | null;
 }
 
 interface Issue {
@@ -70,6 +73,14 @@ export default function SwipeFeed() {
   useEffect(() => {
     fetchFeed();
   }, [selectedLanguage, selectedDifficulty, minMatchScore]);
+
+  // Re-filter locally when goodFirstIssueOnly changes (no API call needed)
+  useEffect(() => {
+    if (!loading) {
+      fetchFeed();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goodFirstIssueOnly]);
 
   async function fetchFeed() {
     setLoading(true);
@@ -146,6 +157,8 @@ export default function SwipeFeed() {
     const currentCard = repoCards[currentIndex];
     const issuesToSwipe = currentCard.issues;
 
+    setCurrentIndex((prev) => prev + 1);
+
     try {
       // Swiping action runs on all issues listed inside the repository card
       const swipePromises = issuesToSwipe.map(async (issue) => {
@@ -175,8 +188,6 @@ export default function SwipeFeed() {
     } catch (err) {
       console.error('Swipe action sync failed:', err);
     }
-
-    setCurrentIndex((prev) => prev + 1);
   };
 
   // Keyboard shortcuts
@@ -195,34 +206,33 @@ export default function SwipeFeed() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, repoCards, loading]);
 
-  const swipeLeft = async () => {
-    await cardControls.start({ x: -400, opacity: 0, rotate: -15, transition: { duration: 0.3 } });
-    handleSwipeAction('SKIP');
-    motionX.set(0);
+  const swipeLeft = () => {
+    cardControls.start({ x: -600, opacity: 0, rotate: -20, transition: { duration: 0.2, ease: 'easeOut' } })
+      .then(() => { handleSwipeAction('SKIP'); motionX.set(0); });
   };
 
-  const swipeRight = async () => {
-    await cardControls.start({ x: 400, opacity: 0, rotate: 15, transition: { duration: 0.3 } });
-    handleSwipeAction('CONTRIBUTE');
-    motionX.set(0);
+  const swipeRight = () => {
+    cardControls.start({ x: 600, opacity: 0, rotate: 20, transition: { duration: 0.2, ease: 'easeOut' } })
+      .then(() => { handleSwipeAction('CONTRIBUTE'); motionX.set(0); });
   };
 
-  const saveBookmark = async () => {
-    await cardControls.start({ y: -300, opacity: 0, transition: { duration: 0.3 } });
-    handleSwipeAction('SAVE');
-    motionY.set(0);
+  const saveBookmark = () => {
+    cardControls.start({ y: -400, opacity: 0, transition: { duration: 0.2, ease: 'easeOut' } })
+      .then(() => { handleSwipeAction('SAVE'); motionY.set(0); });
   };
 
   const handleDragEnd = async (event: any, info: any) => {
-    const threshold = 150;
-    if (info.offset.x > threshold) {
+    const threshold = 100;
+    if (info.offset.x > threshold || info.velocity.x > 500) {
       swipeRight();
-    } else if (info.offset.x < -threshold) {
+    } else if (info.offset.x < -threshold || info.velocity.x < -500) {
       swipeLeft();
     } else if (info.offset.y < -threshold) {
       saveBookmark();
     } else {
-      cardControls.start({ x: 0, y: 0, rotate: 0, transition: { type: 'spring', stiffness: 300, damping: 20 } });
+      // Snap back
+      motionX.set(0);
+      motionY.set(0);
     }
   };
 
@@ -230,8 +240,20 @@ export default function SwipeFeed() {
     setSyncing(true);
     try {
       const res = await fetch('/api/sync', { method: 'POST' });
-      if (res.ok) {
+      const result = await res.json();
+      if (res.ok && result.success) {
+        // Show success toast
+        const id = toastId;
+        setToastId((prev) => prev + 1);
+        setToasts((prev) => [...prev, { id, text: `✨ ${result.issuesSynced} new issues synced!` }]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2500);
+        // Reload the feed to show new cards
         await fetchFeed();
+      } else {
+        const id = toastId;
+        setToastId((prev) => prev + 1);
+        setToasts((prev) => [...prev, { id, text: `❌ Sync failed` }]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2500);
       }
     } catch (err) {
       console.error(err);
@@ -397,15 +419,6 @@ export default function SwipeFeed() {
             </div>
           </button>
         </div>
-
-        {/* Filters Action button */}
-        <button
-          onClick={fetchFeed}
-          className="px-3.5 py-1.5 rounded-xl bg-dark-card border border-dark-border text-xs font-bold text-text-secondary hover:text-text-primary flex items-center space-x-1 cursor-pointer transition-all"
-        >
-          <ListFilter className="h-3.5 w-3.5" />
-          <span>Filters</span>
-        </button>
       </div>
 
       {/* Empty State */}
@@ -439,15 +452,26 @@ export default function SwipeFeed() {
           </button>
         </div>
       ) : (
-        /* Redesigned Repository Stack Card */
-        <div className="w-full relative h-[560px] max-w-xl select-none z-10">
+        <>
+
+
+          {/* Redesigned Repository Stack Card */}
+          <div className="w-full flex-grow relative h-[calc(100vh-380px)] min-h-[420px] max-w-xl select-none z-10">
+            {/* Background peek card (next card) */}
+            {repoCards[currentIndex + 1] && (
+              <div className="absolute inset-0 bg-dark-card rounded-3xl border border-dark-border shadow-sm" style={{ transform: 'scale(0.96) translateY(8px)', zIndex: 0, opacity: 0.6 }} />
+            )}
+          <AnimatePresence mode="wait">
           <motion.div
+            key={currentIndex}
             drag
             dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
             onDragEnd={handleDragEnd}
-            style={{ x: motionX, y: motionY, rotate }}
-            animate={cardControls}
-            className="absolute inset-0 bg-dark-card rounded-3xl p-6 border border-dark-border flex flex-col justify-between cursor-grab active:cursor-grabbing shadow-lg relative overflow-hidden"
+            style={{ x: motionX, y: motionY, rotate, zIndex: 1 }}
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.15, ease: 'easeOut' } }}
+            exit={{ opacity: 0, transition: { duration: 0.05 } }}
+            className="absolute inset-0 bg-dark-card rounded-3xl p-6 border border-dark-border flex flex-col justify-between cursor-grab active:cursor-grabbing shadow-lg overflow-hidden"
           >
             {/* Swiping overlay stamps */}
             <motion.div
@@ -469,12 +493,14 @@ export default function SwipeFeed() {
               <div className="flex justify-between items-start">
                 <div className="flex items-center space-x-3">
                   {/* Repo Owner Logo simulation */}
-                  <div className="h-10 w-10 rounded-xl bg-black border border-dark-border flex items-center justify-center font-black text-sm text-white shrink-0 shadow-sm">
+                  <div className="h-10 w-10 rounded-full bg-black border border-dark-border flex items-center justify-center font-black text-sm text-white shrink-0 shadow-sm">
                     {activeCard.repository.owner[0]?.toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-text-primary leading-tight">
-                      {activeCard.repository.owner} / <span className="text-brand-purple">{activeCard.repository.name}</span>
+                    <h3 className="text-sm font-bold text-text-primary leading-tight hover:underline cursor-pointer">
+                      <a href={activeCard.repository.url} target="_blank" rel="noreferrer">
+                        {activeCard.repository.owner} / <span className="text-brand-purple">{activeCard.repository.name}</span>
+                      </a>
                     </h3>
                     <p className="text-[11px] text-text-secondary mt-0.5 truncate max-w-[280px]">
                       {activeCard.repository.description || 'The open source alternative.'}
@@ -510,6 +536,8 @@ export default function SwipeFeed() {
                 {activeCard.repository.description || 'This repository is looking for new developer contributions to assist with features, bug fixes, and documentation pipelines.'}
               </p>
 
+
+
               {/* Repository Meta Metrics */}
               <div className="flex items-center space-x-4 text-[10px] text-text-tertiary border-b border-dark-border/60 pb-3 font-semibold">
                 <div className="flex items-center space-x-1">
@@ -534,6 +562,14 @@ export default function SwipeFeed() {
                 </div>
               </div>
 
+              {/* README Snippet */}
+              {activeCard.repository.readmeText && (
+                <div className="relative rounded-xl bg-dark-bg/50 border border-dark-border p-3 max-h-[140px] overflow-hidden text-[11px] text-text-secondary leading-relaxed font-mono">
+                  <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-dark-bg/50 to-transparent z-10 pointer-events-none" />
+                  {activeCard.repository.readmeText.slice(0, 500)}...
+                </div>
+              )}
+
               {/* Good First Issues Subsection */}
               <div className="flex-grow flex flex-col justify-between pt-1">
                 <div>
@@ -554,8 +590,8 @@ export default function SwipeFeed() {
                   </div>
 
                   {/* Issues Sub-List */}
-                  <div className="space-y-2 max-h-[195px] overflow-y-auto pr-0.5">
-                    {activeCard.issues.slice(0, 3).map((iss, index) => (
+                  <div className="space-y-2 overflow-y-auto pr-0.5 flex-grow">
+                    {activeCard.issues.slice(0, 5).map((iss, index) => (
                       <a
                         key={iss.id}
                         href={iss.url}
@@ -581,6 +617,9 @@ export default function SwipeFeed() {
                                   {lbl}
                                 </span>
                               ))}
+                              <span className="px-1.5 py-0.5 rounded bg-brand-green/10 text-brand-green text-[9px] font-bold border border-brand-green/20">
+                                Open
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -603,44 +642,46 @@ export default function SwipeFeed() {
               </div>
             </div>
           </motion.div>
+          </AnimatePresence>
         </div>
+        </>
       )}
 
       {/* Interactive Deck Swipe Control Buttons */}
       {activeCard && (
-        <div className="flex items-center justify-center space-x-6 mt-6 relative z-20">
+        <div className="flex items-center justify-center space-x-6 mt-4 relative z-20 w-full">
           {/* Skip Button (Red X) */}
           <button
             onClick={swipeLeft}
-            className="w-13 h-13 rounded-full bg-dark-card border border-brand-red/20 flex items-center justify-center text-brand-red hover:bg-brand-red/10 active:scale-95 transition-all shadow-md glow-red cursor-pointer"
+            className="w-14 h-14 rounded-full bg-dark-card border border-brand-red/20 flex items-center justify-center text-brand-red hover:bg-brand-red/10 active:scale-95 transition-all shadow-lg glow-red cursor-pointer"
             title="Skip (Left Arrow)"
           >
-            <X className="h-5 w-5 stroke-[3px]" />
+            <X className="h-6 w-6 stroke-[3px]" />
           </button>
 
           {/* Info Button (Purple i) */}
           <button
             onClick={() => window.open(activeCard.repository.url, '_blank')}
-            className="w-10 h-10 rounded-full bg-dark-card border border-brand-purple/20 flex items-center justify-center text-brand-purple hover:bg-brand-purple/10 active:scale-95 transition-all shadow-md glow-purple cursor-pointer"
+            className="w-11 h-11 rounded-full bg-dark-card border border-brand-purple/20 flex items-center justify-center text-brand-purple hover:bg-brand-purple/10 active:scale-95 transition-all shadow-md glow-purple cursor-pointer"
             title="Info"
           >
-            <HelpCircle className="h-4.5 w-4.5" />
+            <HelpCircle className="h-5 w-5" />
           </button>
 
           {/* Contribute Button (Green Heart) */}
           <button
             onClick={swipeRight}
-            className="w-13 h-13 rounded-full bg-dark-card border border-brand-green/20 flex items-center justify-center text-brand-green hover:bg-brand-green/10 active:scale-95 transition-all shadow-md glow-green cursor-pointer"
+            className="w-14 h-14 rounded-full bg-dark-card border border-brand-green/20 flex items-center justify-center text-brand-green hover:bg-brand-green/10 active:scale-95 transition-all shadow-lg glow-green cursor-pointer"
             title="Contribute (Right Arrow)"
           >
-            <Heart className="h-5 w-5 fill-brand-green stroke-[2.5px]" />
+            <Heart className="h-6 w-6 fill-brand-green stroke-[2.5px]" />
           </button>
         </div>
       )}
 
       {/* Available Projects Counter */}
       {activeCard && (
-        <div className="mt-5 text-[11px] font-bold text-brand-purple flex items-center space-x-1.5">
+        <div className="mt-3 text-[11px] font-bold text-brand-purple flex items-center space-x-1.5">
           <span>🎉</span>
           <span>{repoCards.length - currentIndex} new projects available</span>
         </div>

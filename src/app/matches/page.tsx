@@ -10,7 +10,7 @@ export default async function MatchesPage() {
     redirect('/');
   }
 
-  if (!user.onboardingCompleted) {
+  if (!(user.preferredLanguages !== '[]')) {
     redirect('/onboarding');
   }
 

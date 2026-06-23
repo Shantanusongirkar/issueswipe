@@ -13,11 +13,11 @@ export async function GET() {
     const fullProfile = await db.user.findUnique({
       where: { id: user.id },
       include: {
-        xpTransactions: {
-          take: 5,
+        swipes: {
+          take: 10,
           orderBy: { createdAt: 'desc' },
         },
-        contributions: {
+        savedMatches: {
           include: {
             issue: {
               include: {
@@ -58,10 +58,9 @@ export async function POST(request: Request) {
     const updatedUser = await db.user.update({
       where: { id: user.id },
       data: {
-        languages: JSON.stringify(languages),
+        preferredLanguages: JSON.stringify(languages),
         experienceLevel,
-        interests: JSON.stringify(interests),
-        onboardingCompleted: true,
+        preferredTopics: JSON.stringify(interests),
       },
     });
 

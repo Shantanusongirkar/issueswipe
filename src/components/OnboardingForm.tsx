@@ -129,18 +129,20 @@ export default function OnboardingForm() {
               {languagesList.map((lang) => {
                 const isSelected = selectedLanguages.includes(lang);
                 return (
-                  <button
+                  <motion.button
                     key={lang}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => toggleLanguage(lang)}
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center justify-between px-5 py-4 rounded-xl border-2 text-sm font-bold transition-all duration-300 cursor-pointer shadow-sm ${
                       isSelected
-                        ? 'bg-brand-green/10 border-brand-green text-brand-green'
-                        : 'bg-dark-bg border-white/5 text-gray-400 hover:border-white/10 hover:text-white'
+                        ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-brand-green/20'
+                        : 'bg-dark-bg/60 border-white/5 text-gray-400 hover:border-white/20 hover:text-white hover:bg-dark-bg'
                     }`}
                   >
-                    <span>{lang}</span>
-                    {isSelected && <Check className="h-4 w-4" />}
-                  </button>
+                    <span className="tracking-wide">{lang}</span>
+                    {isSelected && <Check className="h-5 w-5" />}
+                  </motion.button>
                 );
               })}
             </div>
@@ -164,18 +166,20 @@ export default function OnboardingForm() {
               {experienceLevels.map((lvl) => {
                 const isSelected = experienceLevel === lvl.value;
                 return (
-                  <button
+                  <motion.button
                     key={lvl.value}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
                     onClick={() => setExperienceLevel(lvl.value)}
-                    className={`w-full text-left px-5 py-4 rounded-xl border flex flex-col transition-all duration-200 cursor-pointer ${
+                    className={`w-full text-left px-6 py-5 rounded-xl border-2 flex flex-col transition-all duration-300 cursor-pointer shadow-sm ${
                       isSelected
-                        ? 'bg-brand-blue/10 border-brand-blue text-brand-blue'
-                        : 'bg-dark-bg border-white/5 text-gray-400 hover:border-white/10 hover:text-white'
+                        ? 'bg-brand-blue/10 border-brand-blue text-brand-blue shadow-brand-blue/20'
+                        : 'bg-dark-bg/60 border-white/5 text-gray-400 hover:border-white/20 hover:text-white hover:bg-dark-bg'
                     }`}
                   >
-                    <span className="font-bold text-sm text-white">{lvl.label}</span>
-                    <span className="text-xs text-gray-400 mt-1">{lvl.desc}</span>
-                  </button>
+                    <span className="font-extrabold text-base text-white tracking-wide">{lvl.label}</span>
+                    <span className={`text-sm mt-1.5 leading-relaxed ${isSelected ? 'text-brand-blue/80' : 'text-gray-500'}`}>{lvl.desc}</span>
+                  </motion.button>
                 );
               })}
             </div>
@@ -199,18 +203,20 @@ export default function OnboardingForm() {
               {interestsList.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
-                  <button
+                  <motion.button
                     key={interest}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => toggleInterest(interest)}
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center justify-between px-5 py-4 rounded-xl border-2 text-sm font-bold transition-all duration-300 cursor-pointer shadow-sm ${
                       isSelected
-                        ? 'bg-brand-red/10 border-brand-red text-brand-red'
-                        : 'bg-dark-bg border-white/5 text-gray-400 hover:border-white/10 hover:text-white'
+                        ? 'bg-brand-red/10 border-brand-red text-brand-red shadow-brand-red/20'
+                        : 'bg-dark-bg/60 border-white/5 text-gray-400 hover:border-white/20 hover:text-white hover:bg-dark-bg'
                     }`}
                   >
-                    <span>{interest}</span>
-                    {isSelected && <Check className="h-4 w-4" />}
-                  </button>
+                    <span className="tracking-wide">{interest}</span>
+                    {isSelected && <Check className="h-5 w-5" />}
+                  </motion.button>
                 );
               })}
             </div>

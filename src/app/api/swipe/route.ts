@@ -24,36 +24,27 @@ export async function POST(request: Request) {
         data: {
           userId: user.id,
           issueId,
-          direction: 'SKIP',
+          direction: 'left',
+          matchScore: 0,
         },
       });
     } else if (direction === 'CONTRIBUTE') {
-      // 2. CONTRIBUTE action: Log swipe, save bookmark, and initialize contribution
+      // 2. CONTRIBUTE action: Log swipe and save bookmark
       await db.$transaction(async (tx) => {
         await tx.swipe.create({
           data: {
             userId: user.id,
             issueId,
-            direction: 'CONTRIBUTE',
+            direction: 'right',
+            matchScore: 0,
           },
         });
 
-        // Upsert into saved issues
-        await tx.savedIssue.upsert({
+        // Upsert into saved matches
+        await tx.savedMatch.upsert({
           where: { userId_issueId: { userId: user.id, issueId } },
           update: {},
           create: { userId: user.id, issueId },
-        });
-
-        // Initialize contribution state
-        await tx.contribution.upsert({
-          where: { userId_issueId: { userId: user.id, issueId } },
-          update: {},
-          create: {
-            userId: user.id,
-            issueId,
-            status: 'OPENED',
-          },
         });
       });
 
@@ -62,7 +53,7 @@ export async function POST(request: Request) {
       if (res) updatedUser = res;
     } else if (direction === 'SAVE') {
       // 3. SAVE action: Save bookmark only
-      await db.savedIssue.upsert({
+      await db.savedMatch.upsert({
         where: { userId_issueId: { userId: user.id, issueId } },
         update: {},
         create: { userId: user.id, issueId },
@@ -78,7 +69,7 @@ export async function POST(request: Request) {
       user: {
         xp: updatedUser.xp,
         rank: updatedUser.rank,
-        streak: updatedUser.streak,
+        streak: updatedUser.dailyStreak,
       },
     });
   } catch (error: any) {

@@ -10,7 +10,7 @@ export default async function ProfilePage() {
     redirect('/');
   }
 
-  if (!user.onboardingCompleted) {
+  if (!(user.preferredLanguages !== '[]')) {
     redirect('/onboarding');
   }
 

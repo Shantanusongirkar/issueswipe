@@ -10,7 +10,7 @@ export default async function OnboardingPage() {
     redirect('/');
   }
 
-  if (user.onboardingCompleted) {
+  if ((user.preferredLanguages !== '[]')) {
     redirect('/swipe');
   }
 

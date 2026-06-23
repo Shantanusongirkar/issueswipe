@@ -54,7 +54,29 @@ export default function SavedMatches() {
       const res = await fetch(`/api/matches?${q.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setMatches(data);
+        const mappedData = data.map((d: any) => ({
+          ...d,
+          issue: {
+            ...d.issue,
+            contributionStatus: d.status === 'pr_opened' ? 'SUBMITTED' : d.status === 'pr_merged' ? 'MERGED' : 'OPENED'
+            // wait, if status is 'bookmarked', it should be 'OPENED' so that the user can click "Submit PR"
+            // Wait, in the UI:
+            // if OPENED -> button "Submit PR" -> sets 'SUBMITTED'
+            // if SUBMITTED -> button "Merge PR" -> sets 'MERGED'
+          }
+        }));
+        // Actually, let's look at the mapping carefully:
+        // status='bookmarked' -> contributionStatus='OPENED'
+        // status='pr_opened' -> contributionStatus='SUBMITTED'
+        // status='pr_merged' -> contributionStatus='MERGED'
+        const finalData = data.map((d: any) => {
+          let cStatus = 'NONE';
+          if (d.status === 'bookmarked') cStatus = 'OPENED';
+          else if (d.status === 'pr_opened') cStatus = 'SUBMITTED';
+          else if (d.status === 'pr_merged') cStatus = 'MERGED';
+          return { ...d, issue: { ...d.issue, contributionStatus: cStatus } };
+        });
+        setMatches(finalData);
       }
     } catch (err) {
       console.error('Failed to fetch matches:', err);
@@ -92,10 +114,11 @@ export default function SavedMatches() {
   const handleUpdateContribution = async (issueId: string, status: 'SUBMITTED' | 'MERGED') => {
     try {
       const mockPrUrl = `https://github.com/simulated-pr-${Math.floor(Math.random() * 10000)}`;
+      const apiStatus = status === 'SUBMITTED' ? 'pr_opened' : 'pr_merged';
       const res = await fetch('/api/matches', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ issueId, status, prUrl: mockPrUrl }),
+        body: JSON.stringify({ issueId, status: apiStatus, prUrl: mockPrUrl }),
       });
 
       if (res.ok) {

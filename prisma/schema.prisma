@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,114 +7,121 @@ datasource db {
 }
 
 model User {
-  id                  String           @id @default(uuid())
-  email               String?          @unique
-  username            String           @unique
-  name                String?
-  avatarUrl           String?
-  bio                 String?
-  followersCount      Int              @default(0)
-  publicReposCount    Int              @default(0)
-  githubId            String?          @unique
-  onboardingCompleted Boolean          @default(false)
-  languages           String           @default("[]") // JSON string of languages array
-  experienceLevel     String           @default("Beginner") // "Beginner", "Intermediate", "Advanced"
-  interests           String           @default("[]") // JSON string of interests array
-  xp                  Int              @default(0)
-  streak              Int              @default(0)
-  rank                String           @default("New Contributor")
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  swipes              Swipe[]
-  savedIssues         SavedIssue[]
-  xpTransactions      XPTransaction[]
-  contributions       Contribution[]
+  id            String   @id @default(cuid())
+  githubId      String   @unique
+  username      String   @unique
+  avatar        String?
+  bio           String?
+  githubToken   String?
+  
+  // Profile Settings
+  preferredLanguages   String  // e.g., '["TypeScript", "Python"]'
+  preferredTopics      String  // e.g., '["AI", "Web3"]'
+  experienceLevel      String    // "beginner" | "intermediate" | "advanced"
+  
+  // Gamification
+  xp            Int      @default(0)
+  rank          String   @default("New Contributor") // rank name
+  dailyStreak   Int      @default(0)
+  lastSwiped    DateTime?
+  
+  // Relations
+  swipes        Swipe[]
+  savedMatches  SavedMatch[]
+  notifications Notification[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Repository {
-  id          String   @id @default(uuid())
-  githubId    String   @unique
-  name        String
-  owner       String
-  description String?
-  url         String
-  stars       Int      @default(0)
-  language    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  issues      Issue[]
+  id            String   @id @default(cuid())
+  githubId      String   @unique
+  name          String
+  owner         String
+  fullName      String   @unique // "owner/name"
+  url           String
+  description   String?
+  language      String?  // primary language
+  languages     String // all languages in repo (JSON string)
+  stars         Int      @default(0)
+  license       String?
+  readmeText    String?
+  topics        String // (JSON string)
+  
+  // Issue tracking
+  issues        Issue[]
+  syncedAt      DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Issue {
-  id             String       @id @default(uuid())
-  githubId       String       @unique
-  title          String
-  description    String?
-  url            String
-  number         Int
-  state          String       @default("open")
-  repositoryId   String
-  repository     Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  labels         String       @default("[]") // JSON string of labels
-  difficulty     String       @default("Intermediate") // "Beginner", "Intermediate", "Advanced"
-  estimatedTime  String       @default("2-4 hours")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  swipes         Swipe[]
-  savedIssues    SavedIssue[]
-  contributions  Contribution[]
+  id            String   @id @default(cuid())
+  githubId      String
+  githubNumber  Int
+  title         String
+  description   String?
+  url           String
+  labels        String // e.g., '["good first issue", "help wanted"]'
+  difficulty    String   @default("beginner") // "beginner" | "intermediate" | "advanced"
+  commentsCount Int      @default(0)
+  
+  // Relation
+  repositoryId  String
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  
+  // Swipes on this issue
+  swipes        Swipe[]
+  savedMatches  SavedMatch[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([repositoryId, githubNumber])
 }
 
 model Swipe {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  issueId   String
-  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  direction String   // "SKIP" or "CONTRIBUTE"
-  createdAt DateTime @default(now())
-
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issueId       String
+  issue         Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  direction     String   // "right" | "left" | "saved"
+  matchScore    Int      // 0-100 score
+  
+  createdAt     DateTime @default(now())
+  
   @@unique([userId, issueId])
 }
 
-model SavedIssue {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  issueId   String
-  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-
+model SavedMatch {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issueId       String
+  issue         Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  status        String   @default("bookmarked") // "bookmarked" | "pr_opened" | "pr_merged"
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
   @@unique([userId, issueId])
 }
 
-model XPTransaction {
-  id        String   @id @default(uuid())
+model Notification {
+  id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount    Int
-  action    String   // "SAVE_ISSUE", "OPEN_ISSUE", "SUBMIT_PR", "MERGE_PR"
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, SUCCESS, MATCH
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-}
 
-model Contribution {
-  id        String   @id @default(uuid())
-  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  issueId   String
-  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  status    String   // "OPENED", "SUBMITTED", "MERGED"
-  prUrl     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  @@unique([userId, issueId])
-}
-
-model Rank {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  minXP       Int
-  maxXP       Int
-  description String
+  @@index([userId, isRead])
 }

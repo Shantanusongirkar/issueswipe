@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     // 1. Fetch issues the user hasn't swiped on yet
     const rawIssues = await db.issue.findMany({
       where: {
-        state: 'open',
+        
         swipes: {
           none: {
             userId: user.id,

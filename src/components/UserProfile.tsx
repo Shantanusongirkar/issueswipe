@@ -41,11 +41,10 @@ interface UserProfileData {
   xp: number;
   streak: number;
   rank: string;
-  languages: string; // JSON string array
-  interests: string; // JSON string array
+  preferredLanguages: string; // JSON string array
+  preferredTopics: string; // JSON string array
   experienceLevel: string;
-  xpTransactions: XPTransaction[];
-  contributions: Contribution[];
+  savedMatches: any[];
 }
 
 const RANKS = [
@@ -59,6 +58,11 @@ const RANKS = [
 export default function UserProfile() {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editLanguages, setEditLanguages] = useState<string[]>([]);
+  const [editTopics, setEditTopics] = useState<string[]>([]);
+  const [newLang, setNewLang] = useState('');
+  const [newTopic, setNewTopic] = useState('');
 
   useEffect(() => {
     async function fetchProfile() {
@@ -67,6 +71,8 @@ export default function UserProfile() {
         if (res.ok) {
           const data = await res.json();
           setProfile(data);
+          setEditLanguages(JSON.parse(data.preferredLanguages || '[]'));
+          setEditTopics(JSON.parse(data.preferredTopics || '[]'));
         }
       } catch (err) {
         console.error('Failed to load profile:', err);
@@ -76,6 +82,29 @@ export default function UserProfile() {
     }
     fetchProfile();
   }, []);
+
+  const handleSaveProfile = async () => {
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          languages: editLanguages,
+          interests: editTopics,
+          experienceLevel: profile?.experienceLevel || 'intermediate',
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setProfile(updated);
+        setIsEditing(false);
+        // Force reload layout or dispatch event
+        window.dispatchEvent(new Event('pathnameChange'));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   if (loading) {
     return (
@@ -99,8 +128,8 @@ export default function UserProfile() {
   }
 
   // Parse arrays
-  const languages: string[] = JSON.parse(profile.languages || '[]');
-  const interests: string[] = JSON.parse(profile.interests || '[]');
+  const languages: string[] = JSON.parse(profile.preferredLanguages || '[]');
+  const interests: string[] = JSON.parse(profile.preferredTopics || '[]');
 
   // Calculate XP progress
   const currentRankIndex = RANKS.findIndex(r => profile.xp >= r.minXp && profile.xp <= r.maxXp);
@@ -114,9 +143,9 @@ export default function UserProfile() {
   const percent = nextRankInfo ? Math.min(100, Math.round((relativeXp / range) * 100)) : 100;
 
   // Contributions counts
-  const totalContributions = profile.contributions.length;
-  const mergedCount = profile.contributions.filter(c => c.status === 'MERGED').length;
-  const submittedCount = profile.contributions.filter(c => c.status === 'SUBMITTED').length;
+  const totalContributions = profile.savedMatches?.length || 0;
+  const mergedCount = profile.savedMatches?.filter(c => c.status === 'pr_merged').length || 0;
+  const submittedCount = profile.savedMatches?.filter(c => c.status === 'pr_opened').length || 0;
 
   const actionLabels: Record<string, string> = {
     SAVE_ISSUE: 'Bookmarked an issue',
@@ -154,7 +183,7 @@ export default function UserProfile() {
               </span>
               <div className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-500 text-[10px] font-bold">
                 <Flame className="h-3.5 w-3.5 fill-current animate-pulse" />
-                <span>{profile.streak}d Streak</span>
+                <span>{profile.dailyStreak}d Streak</span>
               </div>
             </div>
           </div>
@@ -231,37 +260,71 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* Preferences & Badges */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
+      {/* Preferences & Badges Header */}
+      <div className="flex justify-between items-end">
+        <h3 className="text-lg font-bold text-text-primary">Your Skills</h3>
+        <div>
+          {isEditing ? (
+            <div className="flex space-x-2">
+              <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-text-secondary hover:bg-bg-pill">Cancel</button>
+              <button onClick={handleSaveProfile} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-purple text-white hover:bg-brand-purple/90">Save Changes</button>
+            </div>
+          ) : (
+            <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-brand-purple hover:bg-brand-purple/10 border border-brand-purple/20">
+              Edit Skills
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+
         {/* Programming Languages */}
         <div className="bg-dark-card border border-dark-border rounded-2xl p-5 space-y-3">
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Programming Languages</h3>
           <div className="flex flex-wrap gap-1.5">
-            {languages.length > 0 ? languages.map((lang) => (
+            {(isEditing ? editLanguages : languages).length > 0 ? (isEditing ? editLanguages : languages).map((lang) => (
               <span
                 key={lang}
-                className="px-2.5 py-1 rounded-lg bg-bg-pill border border-dark-border/40 text-text-secondary text-[11px] font-semibold"
+                className="px-2.5 py-1 rounded-lg bg-bg-pill border border-dark-border/40 text-text-secondary text-[11px] font-semibold flex items-center space-x-1"
               >
-                {lang}
+                <span>{lang}</span>
+                {isEditing && (
+                  <button onClick={() => setEditLanguages(editLanguages.filter(l => l !== lang))} className="ml-1 text-text-tertiary hover:text-brand-red font-bold">&times;</button>
+                )}
               </span>
             )) : <span className="text-xs text-text-tertiary italic">No languages configured.</span>}
           </div>
+          {isEditing && (
+            <div className="flex mt-2 space-x-2">
+              <input type="text" value={newLang} onChange={(e) => setNewLang(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && newLang.trim()) { setEditLanguages([...editLanguages, newLang.trim()]); setNewLang(''); } }} placeholder="Add language..." className="flex-1 bg-bg-pill border border-dark-border rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-brand-purple" />
+              <button onClick={() => { if (newLang.trim()) { setEditLanguages([...editLanguages, newLang.trim()]); setNewLang(''); } }} className="px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold">Add</button>
+            </div>
+          )}
         </div>
 
         {/* Development Interests */}
         <div className="bg-dark-card border border-dark-border rounded-2xl p-5 space-y-3">
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Interests</h3>
           <div className="flex flex-wrap gap-1.5">
-            {interests.length > 0 ? interests.map((interest) => (
+            {(isEditing ? editTopics : interests).length > 0 ? (isEditing ? editTopics : interests).map((interest) => (
               <span
                 key={interest}
-                className="px-2.5 py-1 rounded-lg bg-bg-pill border border-dark-border/40 text-text-secondary text-[11px] font-semibold"
+                className="px-2.5 py-1 rounded-lg bg-bg-pill border border-dark-border/40 text-text-secondary text-[11px] font-semibold flex items-center space-x-1"
               >
-                {interest}
+                <span>{interest}</span>
+                {isEditing && (
+                  <button onClick={() => setEditTopics(editTopics.filter(t => t !== interest))} className="ml-1 text-text-tertiary hover:text-brand-red font-bold">&times;</button>
+                )}
               </span>
             )) : <span className="text-xs text-text-tertiary italic">No interests configured.</span>}
           </div>
+          {isEditing && (
+            <div className="flex mt-2 space-x-2">
+              <input type="text" value={newTopic} onChange={(e) => setNewTopic(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && newTopic.trim()) { setEditTopics([...editTopics, newTopic.trim()]); setNewTopic(''); } }} placeholder="Add topic/interest..." className="flex-1 bg-bg-pill border border-dark-border rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-brand-purple" />
+              <button onClick={() => { if (newTopic.trim()) { setEditTopics([...editTopics, newTopic.trim()]); setNewTopic(''); } }} className="px-3 py-1.5 rounded-lg bg-brand-purple text-white text-xs font-bold">Add</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -272,11 +335,11 @@ export default function UserProfile() {
         <div className="bg-dark-card border border-dark-border rounded-2xl p-5 lg:col-span-2 space-y-4">
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Active Contributions</h3>
 
-          {profile.contributions.length === 0 ? (
+          {!profile.savedMatches || profile.savedMatches.length === 0 ? (
             <p className="text-xs text-text-tertiary py-4 italic">No contributions started yet. Swipe right on some issues!</p>
           ) : (
             <div className="space-y-2">
-              {profile.contributions.slice(0, 4).map((contrib) => (
+              {profile.savedMatches.slice(0, 4).map((contrib) => (
                 <div
                   key={contrib.id}
                   className="p-3 rounded-xl bg-bg-pill border border-dark-border/45 flex items-center justify-between gap-4"
@@ -290,13 +353,13 @@ export default function UserProfile() {
                     </p>
                   </div>
                   <div className="shrink-0">
-                    {contrib.status === 'OPENED' && (
-                      <span className="px-2 py-0.5 rounded bg-brand-blue/15 text-brand-blue text-[9px] font-bold">Opened</span>
+                    {contrib.status === 'bookmarked' && (
+                      <span className="px-2 py-0.5 rounded bg-brand-blue/15 text-brand-blue text-[9px] font-bold">Bookmarked</span>
                     )}
-                    {contrib.status === 'SUBMITTED' && (
-                      <span className="px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-500 text-[9px] font-bold">PR Sent</span>
+                    {contrib.status === 'pr_opened' && (
+                      <span className="px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-500 text-[9px] font-bold">PR Opened</span>
                     )}
-                    {contrib.status === 'MERGED' && (
+                    {contrib.status === 'pr_merged' && (
                       <span className="px-2 py-0.5 rounded bg-brand-green/15 text-brand-green text-[9px] font-bold">Merged</span>
                     )}
                   </div>
@@ -310,11 +373,11 @@ export default function UserProfile() {
         <div className="bg-dark-card border border-dark-border rounded-2xl p-5 space-y-4">
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Recent Activity Log</h3>
 
-          {profile.xpTransactions.length === 0 ? (
+          {(!profile.xpTransactions || profile.xpTransactions.length === 0) ? (
             <p className="text-xs text-text-tertiary py-4 italic">No XP earned yet.</p>
           ) : (
             <div className="space-y-3">
-              {profile.xpTransactions.map((tx) => (
+              {profile.xpTransactions.map((tx: any) => (
                 <div key={tx.id} className="flex justify-between items-center text-xs border-b border-dark-border/40 pb-2 last:border-0 last:pb-0">
                   <div className="space-y-0.5">
                     <span className="font-semibold text-text-secondary block leading-snug">{actionLabels[tx.action] || tx.action}</span>

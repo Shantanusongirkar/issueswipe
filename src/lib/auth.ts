@@ -24,39 +24,6 @@ export async function verifyToken(token: string) {
 }
 
 export async function getSessionUser() {
-  const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
-
-  // If in dev mode, auto-login the developer user
-  if (isDevMode) {
-    let devUser = await db.user.findUnique({
-      where: { username: 'developer' },
-    });
-
-    if (!devUser) {
-      // Create developer user if missing
-      devUser = await db.user.create({
-        data: {
-          username: 'developer',
-          email: 'dev@issueswipe.io',
-          name: 'Super Developer',
-          avatarUrl: 'https://avatars.githubusercontent.com/u/583231?v=4',
-          bio: 'Building systems, typing code, and swiping for pull requests.',
-          followersCount: 150,
-          publicReposCount: 45,
-          githubId: 'mock-github-id-12345',
-          onboardingCompleted: true,
-          languages: JSON.stringify(['TypeScript', 'JavaScript', 'Python', 'Go']),
-          experienceLevel: 'Intermediate',
-          interests: JSON.stringify(['Frontend', 'Backend', 'AI']),
-          xp: 250,
-          streak: 5,
-          rank: 'Issue Hunter',
-        },
-      });
-    }
-
-    return devUser;
-  }
 
   const cookieStore = await cookies();
   const token = cookieStore.get('session')?.value;

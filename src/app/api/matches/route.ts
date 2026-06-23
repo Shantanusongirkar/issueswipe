@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const language = searchParams.get('language') || '';
 
   try {
-    const savedMatches = await db.savedIssue.findMany({
+    const savedMatches = await db.savedMatch.findMany({
       where: {
         userId: user.id,
         issue: {
@@ -32,9 +32,6 @@ export async function GET(request: Request) {
         issue: {
           include: {
             repository: true,
-            contributions: {
-              where: { userId: user.id },
-            },
           },
         },
       },
@@ -42,23 +39,20 @@ export async function GET(request: Request) {
     });
 
     // Clean up structure for response
-    const formattedMatches = savedMatches.map((match) => {
-      const contribution = match.issue.contributions[0] || null;
+    const formattedMatches = savedMatches.map((match: any) => {
       return {
         savedId: match.id,
         savedAt: match.createdAt,
+        status: match.status, // "bookmarked" | "pr_opened" | "pr_merged"
         issue: {
           id: match.issue.id,
           title: match.issue.title,
           description: match.issue.description,
           url: match.issue.url,
-          number: match.issue.number,
+          githubNumber: match.issue.githubNumber,
           difficulty: match.issue.difficulty,
-          estimatedTime: match.issue.estimatedTime,
           labels: JSON.parse(match.issue.labels || '[]'),
           repository: match.issue.repository,
-          contributionStatus: contribution ? contribution.status : 'NONE',
-          prUrl: contribution ? contribution.prUrl : null,
         },
       };
     });
@@ -85,8 +79,8 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Issue ID required' }, { status: 400 });
     }
 
-    // Remove from saved issue
-    await db.savedIssue.deleteMany({
+    // Remove from savedMatch
+    await db.savedMatch.deleteMany({
       where: {
         userId: user.id,
         issueId,
@@ -109,33 +103,32 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const { issueId, status, prUrl } = await request.json();
+    const { issueId, status } = await request.json();
 
-    if (!issueId || !['SUBMITTED', 'MERGED'].includes(status)) {
+    if (!issueId || !['pr_opened', 'pr_merged'].includes(status)) {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
 
     let updatedUser = user;
 
     await db.$transaction(async (tx) => {
-      // 1. Update contribution
-      await tx.contribution.updateMany({
+      // 1. Update status
+      await tx.savedMatch.updateMany({
         where: {
           userId: user.id,
           issueId,
         },
         data: {
           status,
-          ...(prUrl ? { prUrl } : {}),
         },
       });
     });
 
     // 2. Award XP corresponding to the workflow advancement
-    if (status === 'SUBMITTED') {
+    if (status === 'pr_opened') {
       const res = await addXp(user.id, 'SUBMIT_PR');
       if (res) updatedUser = res;
-    } else if (status === 'MERGED') {
+    } else if (status === 'pr_merged') {
       const res = await addXp(user.id, 'MERGE_PR');
       if (res) updatedUser = res;
     }
@@ -146,7 +139,7 @@ export async function PUT(request: Request) {
       user: {
         xp: updatedUser.xp,
         rank: updatedUser.rank,
-        streak: updatedUser.streak,
+        streak: updatedUser.dailyStreak,
       },
     });
   } catch (error: any) {

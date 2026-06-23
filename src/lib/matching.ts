@@ -7,13 +7,18 @@ export function calculateMatchScore(
   let score = 0;
 
   // Safe JSON parsers
-  const userLanguages: string[] = JSON.parse(user.languages || '[]');
-  const userInterests: string[] = JSON.parse(user.interests || '[]');
+  const userLanguages: string[] = JSON.parse(user.preferredLanguages || '[]');
+  const userInterests: string[] = JSON.parse(user.preferredTopics || '[]');
   const issueLabels: string[] = JSON.parse(issue.labels || '[]');
+  const repoLanguages: string[] = JSON.parse(issue.repository.languages || '[]');
 
   // 1. Language Match (Max 30 points)
-  const repoLanguage = issue.repository.language;
-  if (repoLanguage && userLanguages.some(lang => lang.toLowerCase() === repoLanguage.toLowerCase())) {
+  if (repoLanguages.length > 0 && userLanguages.length > 0) {
+    const langMatches = repoLanguages.filter(lang => 
+      userLanguages.some(pref => pref.toLowerCase() === lang.toLowerCase())
+    ).length;
+    score += Math.min(30, langMatches * 10);
+  } else if (issue.repository.language && userLanguages.some(lang => lang.toLowerCase() === issue.repository.language!.toLowerCase())) {
     score += 30;
   }
 
@@ -106,15 +111,15 @@ export function calculateMatchScore(
   }
 
   // 3. Experience/Difficulty Match (Max 20 points)
-  const userExp = user.experienceLevel; // "Beginner", "Intermediate", "Advanced"
-  const issueDiff = issue.difficulty;     // "Beginner", "Intermediate", "Advanced"
+  const userExp = user.experienceLevel.toLowerCase(); // "beginner", "intermediate", "advanced"
+  const issueDiff = issue.difficulty.toLowerCase();     // "beginner", "intermediate", "advanced"
 
   if (userExp === issueDiff) {
     score += 20;
   } else if (
-    (userExp === 'Intermediate' && (issueDiff === 'Beginner' || issueDiff === 'Advanced')) ||
-    (userExp === 'Beginner' && issueDiff === 'Intermediate') ||
-    (userExp === 'Advanced' && issueDiff === 'Intermediate')
+    (userExp === 'intermediate' && (issueDiff === 'beginner' || issueDiff === 'advanced')) ||
+    (userExp === 'beginner' && issueDiff === 'intermediate') ||
+    (userExp === 'advanced' && issueDiff === 'intermediate')
   ) {
     score += 10;
   }
@@ -125,9 +130,9 @@ export function calculateMatchScore(
   const isHelpWanted = issueLabels.some(l => l.toLowerCase().includes('help wanted'));
 
   if (isGoodFirst) {
-    if (userExp === 'Beginner') {
+    if (userExp === 'beginner') {
       labelScore += 15;
-    } else if (userExp === 'Intermediate') {
+    } else if (userExp === 'intermediate') {
       labelScore += 10;
     } else {
       labelScore += 5;
