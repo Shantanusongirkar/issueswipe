@@ -44,6 +44,7 @@ export default function SwipeFeed() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   
   // XP floating toasts
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
@@ -193,7 +194,7 @@ export default function SwipeFeed() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (currentIndex >= repoCards.length || loading) return;
+      if (currentIndex >= repoCards.length || loading || isAnimating) return;
       if (e.key === 'ArrowLeft') {
         swipeLeft();
       } else if (e.key === 'ArrowRight') {
@@ -204,24 +205,31 @@ export default function SwipeFeed() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, repoCards, loading]);
+  }, [currentIndex, repoCards, loading, isAnimating]);
 
   const swipeLeft = () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
     cardControls.start({ x: -600, opacity: 0, rotate: -20, transition: { duration: 0.2, ease: 'easeOut' } })
-      .then(() => { handleSwipeAction('SKIP'); motionX.set(0); });
+      .then(() => { handleSwipeAction('SKIP'); motionX.set(0); setIsAnimating(false); });
   };
 
   const swipeRight = () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
     cardControls.start({ x: 600, opacity: 0, rotate: 20, transition: { duration: 0.2, ease: 'easeOut' } })
-      .then(() => { handleSwipeAction('CONTRIBUTE'); motionX.set(0); });
+      .then(() => { handleSwipeAction('CONTRIBUTE'); motionX.set(0); setIsAnimating(false); });
   };
 
   const saveBookmark = () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
     cardControls.start({ y: -400, opacity: 0, transition: { duration: 0.2, ease: 'easeOut' } })
-      .then(() => { handleSwipeAction('SAVE'); motionY.set(0); });
+      .then(() => { handleSwipeAction('SAVE'); motionY.set(0); setIsAnimating(false); });
   };
 
   const handleDragEnd = async (event: any, info: any) => {
+    if (isAnimating) return;
     const threshold = 100;
     if (info.offset.x > threshold || info.velocity.x > 500) {
       swipeRight();

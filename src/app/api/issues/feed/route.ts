@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { calculateMatchScore } from '@/lib/matching';
+import type { Issue, Repository } from '@prisma/client';
+
+type IssueWithRepo = Issue & { repository: Repository };
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -15,7 +18,7 @@ export async function GET(request: Request) {
 
   try {
     // 1. Fetch issues the user hasn't swiped on yet
-    const rawIssues = await db.issue.findMany({
+    const rawIssues: IssueWithRepo[] = await db.issue.findMany({
       where: {
         
         swipes: {
@@ -32,7 +35,7 @@ export async function GET(request: Request) {
     });
 
     // 2. Compute scores and map structures
-    let scoredIssues = rawIssues.map((issue: any) => {
+    let scoredIssues = rawIssues.map((issue: IssueWithRepo) => {
       const matchScore = calculateMatchScore(user, issue);
       return {
         ...issue,
@@ -44,7 +47,7 @@ export async function GET(request: Request) {
     // 3. Apply optional programming language filter
     if (filterLang) {
       scoredIssues = scoredIssues.filter(
-        (issue: any) =>
+        (issue) =>
           issue.repository.language?.toLowerCase() === filterLang.toLowerCase()
       );
     }
@@ -53,9 +56,10 @@ export async function GET(request: Request) {
     scoredIssues.sort((a, b) => b.matchScore - a.matchScore);
 
     return NextResponse.json(scoredIssues);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: `Failed to fetch issue feed: ${error.message}` },
+      { error: `Failed to fetch issue feed: ${message}` },
       { status: 500 }
     );
   }

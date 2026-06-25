@@ -98,10 +98,10 @@ export async function syncIssuesFromGitHub(
       throw new Error(`GitHub API returned status ${response.status}`);
     }
 
-    const { data, errors } = await response.json();
+    const { data, errors } = await response.json() as { data: any, errors?: { message: string }[] };
 
     if (errors && errors.length > 0) {
-      throw new Error(`GraphQL errors: ${errors.map((e: any) => e.message).join(', ')}`);
+      throw new Error(`GraphQL errors: ${errors.map((e) => e.message).join(', ')}`);
     }
 
     const edges = data?.search?.edges || [];
@@ -112,7 +112,7 @@ export async function syncIssuesFromGitHub(
       if (!node || !node.repository) continue;
 
       const repoNode = node.repository;
-      const labels = node.labels?.nodes?.map((l: any) => l.name) || [];
+      const labels: string[] = node.labels?.nodes?.map((l: { name: string }) => l.name) || [];
 
       // 1. Create or Update Repository
       const readmeBlob = repoNode.object;
@@ -181,9 +181,10 @@ export async function syncIssuesFromGitHub(
       issuesSynced: syncCount,
       message: `Successfully synced ${syncCount} issues from GitHub GraphQL search.`,
     };
-  } catch (err: any) {
-    console.error('GitHub API sync failed, falling back to simulation:', err.message);
-    return simulateSync(`Sync failed: ${err.message}. Simulating instead.`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('GitHub API sync failed, falling back to simulation:', message);
+    return simulateSync(`Sync failed: ${message}. Simulating instead.`);
   }
 }
 
@@ -260,8 +261,15 @@ async function simulateSync(note?: string): Promise<GitHubIssueSyncResult> {
       const difficulty = isDocOrBug ? 'Beginner' : Math.random() > 0.5 ? 'Intermediate' : 'Advanced';
 
       try {
-        await db.issue.create({
-          data: {
+        await db.issue.upsert({
+          where: { repositoryId_githubNumber: { repositoryId: repo.id, githubNumber: issueNum } },
+          update: {
+            title: title,
+            description: `This issue needs help in ${repoData.owner}/${repoData.name}. Great opportunity for open source contribution.`,
+            labels: JSON.stringify(isDocOrBug ? ['good first issue', 'documentation'] : ['good first issue', 'help wanted']),
+            difficulty,
+          },
+          create: {
             githubId: randomId,
             title: title,
             description: `This issue needs help in ${repoData.owner}/${repoData.name}. Great opportunity for open source contribution.`,

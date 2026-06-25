@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { db } from './db';
-import { adminAuth } from './firebase/server';
+import { getAdminAuth } from './firebase/server';
 
 export async function getSessionUser() {
   const cookieStore = await cookies();
@@ -11,7 +11,7 @@ export async function getSessionUser() {
   }
 
   try {
-    const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const decodedClaims = await getAdminAuth().verifySessionCookie(sessionCookie, true);
     
     const user = await db.user.findFirst({
       where: { githubId: decodedClaims.uid },

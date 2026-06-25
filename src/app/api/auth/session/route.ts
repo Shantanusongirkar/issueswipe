@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/server';
+import { getAdminAuth } from '@/lib/firebase/server';
 import { db } from '@/lib/db';
 import { cookies } from 'next/headers';
 
@@ -8,11 +8,11 @@ export async function POST(request: Request) {
     const { idToken } = await request.json();
     
     // Verify the ID token
-    const decodedIdToken = await adminAuth.verifyIdToken(idToken);
+    const decodedIdToken = await getAdminAuth().verifyIdToken(idToken);
 
     // Create session cookie
     const expiresIn = 60 * 60 * 24 * 7 * 1000; // 7 days
-    const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
+    const sessionCookie = await getAdminAuth().createSessionCookie(idToken, { expiresIn });
 
     // Sync user to database
     let user = await db.user.findFirst({
@@ -50,7 +50,14 @@ export async function POST(request: Request) {
       sameSite: 'lax',
     });
 
-    const isNew = user.preferredLanguages === '[]' || user.preferredLanguages === '';
+    let isNew = true;
+    try {
+      const prefs = user.preferredLanguages ? JSON.parse(user.preferredLanguages) : [];
+      isNew = prefs.length === 0;
+    } catch {
+      isNew = true;
+    }
+    
     return NextResponse.json({ success: true, isNew });
   } catch (error) {
     console.error('Session error', error);
