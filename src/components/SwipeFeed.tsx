@@ -247,7 +247,16 @@ export default function SwipeFeed() {
   const handleSyncIssues = async () => {
     setSyncing(true);
     try {
-      const res = await fetch('/api/sync', { method: 'POST' });
+      const bodyPayload: any = {};
+      if (selectedLanguage !== 'All') {
+        bodyPayload.languages = [selectedLanguage];
+      }
+
+      const res = await fetch('/api/sync', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload)
+      });
       const result = await res.json();
       if (res.ok && result.success) {
         // Show success toast

@@ -86,7 +86,9 @@ const GITHUB_SEARCH_QUERY = `
 export async function syncIssuesFromGitHub(
   accessToken?: string,
   preferredLanguages: string[] = [],
-  preferredTopics: string[] = []
+  preferredTopics: string[] = [],
+  searchText?: string,
+  customLabels: string[] = []
 ): Promise<GitHubIssueSyncResult> {
   const token = accessToken || process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
 
@@ -117,7 +119,13 @@ export async function syncIssuesFromGitHub(
     };
 
     let issues: any[] = [];
-    const baseQuery = ['type:issue', 'state:open', 'label:"good first issue"'];
+    const baseQuery = ['type:issue', 'state:open'];
+    if (searchText) baseQuery.push(searchText);
+    if (customLabels.length > 0) {
+      customLabels.forEach(label => baseQuery.push(`label:"${label}"`));
+    } else {
+      baseQuery.push('label:"good first issue"');
+    }
     
     // 1. Try strict match (Languages + Topics)
     let queryParts = [...baseQuery];
