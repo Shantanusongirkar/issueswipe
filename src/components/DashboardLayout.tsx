@@ -25,6 +25,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [showAllSkills, setShowAllSkills] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,9 +138,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const defaultUser = null;
 
   const user = sessionUser || defaultUser;
-  const userLanguages = user ? parseJson(user.languages, []) : [];
-  const userInterests = user ? parseJson(user.interests, []) : [];
+  const userLanguages = user ? parseJson(user.preferredLanguages, []) : [];
+  const userInterests = user ? parseJson(user.preferredTopics, []) : [];
   const allSkills = user ? Array.from(new Set([...userLanguages, ...userInterests])) : [];
+  const displayedSkills = showAllSkills ? allSkills : allSkills.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-dark-bg text-text-primary flex transition-colors duration-200">
@@ -199,7 +201,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <Link href="/profile" className="text-xs font-bold text-brand-purple hover:underline">Edit</Link>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {allSkills.slice(0, 8).map((skill: any) => (
+                  {displayedSkills.map((skill: any) => (
                     <span
                       key={skill}
                       className="px-2.5 py-1 rounded-lg bg-bg-pill text-text-secondary text-[11px] font-semibold border border-dark-border/40"
@@ -207,6 +209,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       {skill}
                     </span>
                   ))}
+                  {allSkills.length > 5 && (
+                    <button
+                      onClick={() => setShowAllSkills(!showAllSkills)}
+                      className="px-2.5 py-1 rounded-lg bg-bg-pill text-text-secondary text-[11px] font-semibold border border-dark-border/40 hover:text-text-primary transition-colors cursor-pointer"
+                    >
+                      {showAllSkills ? 'Show less' : `+${allSkills.length - 5} more`}
+                    </button>
+                  )}
                   <Link
                     href="/profile"
                     className="px-2.5 py-1 rounded-lg bg-bg-pill text-brand-purple text-[11px] font-bold border border-dark-border/40 hover:underline"

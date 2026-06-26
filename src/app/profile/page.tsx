@@ -10,7 +10,14 @@ export default async function ProfilePage() {
     redirect('/');
   }
 
-  if (!(user.preferredLanguages !== '[]')) {
+  let isNew = false;
+  try {
+    const prefs = user.preferredLanguages ? JSON.parse(user.preferredLanguages) : [];
+    isNew = prefs.length === 0;
+  } catch {
+    isNew = true;
+  }
+  if (isNew) {
     redirect('/onboarding');
   }
 
