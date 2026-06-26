@@ -96,122 +96,130 @@ export async function syncIssuesFromGitHub(
   }
 
   try {
-    // Helper function to execute GraphQL search
-    const executeSearch = async (queryParts: string[]) => {
-      const queryString = queryParts.join(' ');
-      console.log('[Sync] GitHub search query:', queryString);
-      const response = await fetch(GITHUB_GRAPHQL_ENDPOINT, {
-        method: 'POST',
+    const executeRestSearch = async (queryParts: string[]) => {
+      const q = encodeURIComponent(queryParts.join(' '));
+      // Pick a random page between 1 and 5 to always get fresh issues
+      const page = Math.floor(Math.random() * 5) + 1;
+      const url = `https://api.github.com/search/issues?q=${q}&per_page=30&page=${page}&sort=updated`;
+      console.log(`[Sync] GitHub REST search query: ${queryParts.join(' ')} (Page ${page})`);
+      
+      const response = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json',
           'User-Agent': 'IssueSwipe-Sync-Service',
         },
-        body: JSON.stringify({
-          query: GITHUB_SEARCH_QUERY,
-          variables: { queryString },
-        }),
       });
 
-      if (!response.ok) throw new Error(`GitHub API returned status ${response.status}`);
-      const responseBody = await response.json() as GitHubGraphQLResponse;
-      if (responseBody.errors && responseBody.errors.length > 0) {
-        throw new Error(`GraphQL errors: ${responseBody.errors.map((e) => e.message).join(', ')}`);
-      }
-      return responseBody.data?.search?.edges || [];
+      if (!response.ok) throw new Error(`GitHub REST API returned status ${response.status}`);
+      const data = await response.json();
+      return (data.items || []).filter((item: any) => !item.pull_request);
     };
 
-    let edges: any[] = [];
-    const baseQuery = ['is:issue', 'is:open', 'label:"good first issue"', 'sort:updated'];
+    let issues: any[] = [];
+    const baseQuery = ['type:issue', 'state:open', 'label:"good first issue"'];
     
     // 1. Try strict match (Languages + Topics)
     let queryParts = [...baseQuery];
     if (preferredLanguages.length > 0) {
-      queryParts.push(preferredLanguages.map(l => `language:${l}`).join(' '));
+      preferredLanguages.forEach(l => queryParts.push(`language:${l}`));
     }
     if (preferredTopics.length > 0) {
-      // Use OR for topics to broaden the search
-      queryParts.push(preferredTopics.join(' OR '));
+      // For REST, multiple topics might be too restrictive, but we try it
+      preferredTopics.forEach(t => queryParts.push(t));
     }
-    edges = await executeSearch(queryParts);
+    issues = await executeRestSearch(queryParts);
 
     // 2. Fallback: Only Languages
-    if (edges.length === 0 && preferredTopics.length > 0) {
+    if (issues.length === 0 && preferredTopics.length > 0) {
       console.log('[Sync] Strict match returned 0, trying only languages...');
       queryParts = [...baseQuery];
       if (preferredLanguages.length > 0) {
-        queryParts.push(preferredLanguages.map(l => `language:${l}`).join(' '));
+        preferredLanguages.forEach(l => queryParts.push(`language:${l}`));
       }
-      edges = await executeSearch(queryParts);
+      issues = await executeRestSearch(queryParts);
     }
 
     // 3. Fallback: Broadest possible search
-    if (edges.length === 0 && preferredLanguages.length > 0) {
+    if (issues.length === 0 && preferredLanguages.length > 0) {
       console.log('[Sync] Language match returned 0, trying broad search...');
-      edges = await executeSearch([...baseQuery]);
+      issues = await executeRestSearch([...baseQuery]);
     }
 
     let syncCount = 0;
 
-    for (const edge of edges) {
-      const node = edge.node;
-      if (!node || !node.repository) continue;
+    // Fetch Unique Repositories
+    const uniqueRepoUrls = [...new Set(issues.map(i => i.repository_url))];
+    const repoDataMap = new Map();
+    
+    await Promise.all(uniqueRepoUrls.map(async (repoUrl: unknown) => {
+      if (typeof repoUrl !== 'string') return;
+      try {
+        const repoRes = await fetch(repoUrl, {
+          headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json', 'User-Agent': 'IssueSwipe-Sync-Service' }
+        });
+        if (repoRes.ok) {
+          repoDataMap.set(repoUrl, await repoRes.json());
+        }
+      } catch (e) {
+        console.warn(`Failed to fetch repo ${repoUrl}`);
+      }
+    }));
 
-      const repoNode = node.repository;
-      const labels: string[] = node.labels?.nodes?.map((l: { name: string }) => l.name) || [];
+    for (const node of issues) {
+      const repoNode = repoDataMap.get(node.repository_url);
+      if (!repoNode) continue; // Skip if repo data couldn't be fetched
+
+      const labels: string[] = node.labels?.map((l: { name: string }) => l.name) || [];
 
       // 1. Create or Update Repository
-      const readmeBlob = repoNode.object;
-      const readmeText = readmeBlob && readmeBlob.text ? readmeBlob.text : null;
-
       const repo = await db.repository.upsert({
-        where: { githubId: repoNode.id },
+        where: { githubId: repoNode.id.toString() }, // REST API returns id as number
         update: {
           name: repoNode.name,
-          fullName: `${repoNode.owner.login}/${repoNode.name}`,
-          languages: JSON.stringify([repoNode.primaryLanguage?.name || 'TypeScript']),
-          topics: JSON.stringify([]),
+          fullName: repoNode.full_name,
+          languages: JSON.stringify([repoNode.language || 'TypeScript']),
+          topics: JSON.stringify(repoNode.topics || []),
           owner: repoNode.owner.login,
           description: repoNode.description,
-          readmeText: readmeText,
-          url: repoNode.url,
-          stars: repoNode.stargazerCount,
-          language: repoNode.primaryLanguage?.name || 'TypeScript',
+          url: repoNode.html_url,
+          stars: repoNode.stargazers_count,
+          language: repoNode.language || 'TypeScript',
         },
         create: {
-          githubId: repoNode.id,
+          githubId: repoNode.id.toString(),
           name: repoNode.name,
-          fullName: `${repoNode.owner.login}/${repoNode.name}`,
-          languages: JSON.stringify([repoNode.primaryLanguage?.name || 'TypeScript']),
-          topics: JSON.stringify([]),
+          fullName: repoNode.full_name,
+          languages: JSON.stringify([repoNode.language || 'TypeScript']),
+          topics: JSON.stringify(repoNode.topics || []),
           owner: repoNode.owner.login,
           description: repoNode.description,
-          readmeText: readmeText,
-          url: repoNode.url,
-          stars: repoNode.stargazerCount,
-          language: repoNode.primaryLanguage?.name || 'TypeScript',
+          url: repoNode.html_url,
+          stars: repoNode.stargazers_count,
+          language: repoNode.language || 'TypeScript',
         },
       });
 
       // 2. Map labels to difficulty/estimated time
       const isGoodFirst = labels.some((l: string) => l.toLowerCase().includes('good first issue'));
       const difficulty = isGoodFirst ? 'Beginner' : Math.random() > 0.5 ? 'Intermediate' : 'Advanced';
+      
       // 3. Create or Update Issue
       await db.issue.upsert({
         where: { repositoryId_githubNumber: { repositoryId: repo.id, githubNumber: node.number } },
         update: {
           title: node.title,
           description: node.body || '',
-          url: node.url,
+          url: node.html_url, // REST uses html_url for the web link
           githubNumber: node.number,
           labels: JSON.stringify(labels),
           difficulty,
         },
         create: {
-          githubId: node.id,
+          githubId: node.id.toString(),
           title: node.title,
           description: node.body || '',
-          url: node.url,
+          url: node.html_url,
           githubNumber: node.number,
           repositoryId: repo.id,
           labels: JSON.stringify(labels),
@@ -230,7 +238,7 @@ export async function syncIssuesFromGitHub(
     return {
       success: true,
       issuesSynced: syncCount,
-      message: `Successfully synced ${syncCount} issues from GitHub GraphQL search.`,
+      message: `Successfully synced ${syncCount} issues from GitHub REST search.`,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
