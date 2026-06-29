@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   try {
-    // Fetch user with recent swipes and contributions
+    // Fetch user with recent swipes, contributions and real XP transactions
     const fullProfile = await db.user.findUnique({
       where: { id: user.id },
       include: {
@@ -27,6 +27,10 @@ export async function GET() {
           },
           orderBy: { updatedAt: 'desc' },
         },
+        xpTransactions: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -34,59 +38,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Build mock transactions dynamically for the UI
-    const xpTransactions: any[] = [];
-
-    // Swipes
-    for (const swipe of fullProfile.swipes) {
-      if (swipe.direction === 'right') {
-        xpTransactions.push({
-          id: `swipe-${swipe.id}`,
-          amount: 25,
-          action: 'OPEN_ISSUE',
-          createdAt: swipe.createdAt.toISOString(),
-        });
-      }
-    }
-
-    // Saved Matches
-    for (const match of fullProfile.savedMatches) {
-      if (match.status === 'pr_merged') {
-        xpTransactions.push({
-          id: `merge-${match.id}`,
-          amount: 250,
-          action: 'MERGE_PR',
-          createdAt: match.updatedAt.toISOString(),
-        });
-      }
-      if (match.status === 'pr_opened' || match.status === 'pr_merged') {
-        xpTransactions.push({
-          id: `pr-${match.id}`,
-          amount: 100,
-          action: 'SUBMIT_PR',
-          createdAt: match.createdAt.toISOString(),
-        });
-      }
-      const hasRightSwipe = fullProfile.swipes.some((s) => s.issueId === match.issueId && s.direction === 'right');
-      if (!hasRightSwipe) {
-        xpTransactions.push({
-          id: `save-${match.id}`,
-          amount: 10,
-          action: 'SAVE_ISSUE',
-          createdAt: match.createdAt.toISOString(),
-        });
-      }
-    }
-
-    // Sort transactions by date descending
-    xpTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    const responseData = {
-      ...fullProfile,
-      xpTransactions: xpTransactions.slice(0, 10),
-    };
-
-    return NextResponse.json(responseData);
+    return NextResponse.json(fullProfile);
   } catch (error: any) {
     return NextResponse.json(
       { error: `Failed to load user profile: ${error.message}` },

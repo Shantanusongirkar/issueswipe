@@ -135,10 +135,60 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
 
+    // 1. Fetch saved match details to verify repository name
+    const match = await db.savedMatch.findFirst({
+      where: {
+        userId: user.id,
+        issueId,
+      },
+      include: {
+        issue: {
+          include: {
+            repository: true,
+          },
+        },
+      },
+    });
+
+    if (!match) {
+      return NextResponse.json({ error: 'Saved match not found' }, { status: 404 });
+    }
+
+    // 2. Verify PR status on GitHub
+    const isMockUser = user.githubId === 'mock_dev_github_user_12345';
+    let isVerified = false;
+
+    if (process.env.NEXT_PUBLIC_DEV_MODE === 'true' && isMockUser) {
+      isVerified = true;
+    } else {
+      const prStatus = await checkUserPRStatus(
+        user.username,
+        match.issue.repository.fullName,
+        user.githubToken || undefined
+      );
+
+      if (prStatus) {
+        if (status === 'pr_opened' && (prStatus.status === 'pr_opened' || prStatus.status === 'pr_merged')) {
+          isVerified = true;
+        } else if (status === 'pr_merged' && prStatus.status === 'pr_merged') {
+          isVerified = true;
+        }
+      }
+    }
+
+    if (!isVerified) {
+      return NextResponse.json(
+        {
+          error: `Could not verify your Pull Request on GitHub for ${match.issue.repository.fullName}. Make sure you have opened/merged a PR from your account (@${user.username}).`,
+        },
+        { status: 400 }
+      );
+    }
+
     let updatedUser = user;
 
     await db.$transaction(async (tx) => {
-      // 1. Update status
+      // 3. Update status
       await tx.savedMatch.updateMany({
         where: {
           userId: user.id,
@@ -150,7 +200,7 @@ export async function PUT(request: Request) {
       });
     });
 
-    // 2. Award XP corresponding to the workflow advancement
+    // 4. Award XP corresponding to the workflow advancement
     if (status === 'pr_opened') {
       const res = await addXp(user.id, 'SUBMIT_PR');
       if (res) updatedUser = res;

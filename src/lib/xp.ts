@@ -62,7 +62,16 @@ export async function addXp(userId: string, action: string) {
         streakToSet = 1;
       }
 
-      // 3. Update User
+      // 3. Create XP Transaction record
+      await tx.xpTransaction.create({
+        data: {
+          userId,
+          amount: xpGained,
+          action,
+        },
+      });
+
+      // 4. Update User
       updatedUser = await tx.user.update({
         where: { id: userId },
         data: {

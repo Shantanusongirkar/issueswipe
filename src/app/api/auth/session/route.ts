@@ -8,8 +8,55 @@ export async function GET() {
   try {
     const user = await getSessionUser();
     if (user) {
+      // Self-healing migration for XP transactions
+      const txCount = await db.xpTransaction.count({ where: { userId: user.id } });
+      let finalUser = user;
+      
+      if (txCount === 0 && user.xp > 0) {
+        // Create transactions based on existing swipes and matches
+        const swipes = await db.swipe.findMany({ where: { userId: user.id, direction: 'right' } });
+        const matches = await db.savedMatch.findMany({ where: { userId: user.id } });
+
+        const toCreate = [];
+        for (const swipe of swipes) {
+          toCreate.push({
+            userId: user.id,
+            amount: 25,
+            action: 'OPEN_ISSUE',
+            createdAt: swipe.createdAt,
+          });
+        }
+        for (const match of matches) {
+          if (match.status === 'pr_merged') {
+            toCreate.push({
+              userId: user.id,
+              amount: 250,
+              action: 'MERGE_PR',
+              createdAt: match.updatedAt,
+            });
+          }
+          if (match.status === 'pr_opened' || match.status === 'pr_merged') {
+            toCreate.push({
+              userId: user.id,
+              amount: 100,
+              action: 'SUBMIT_PR',
+              createdAt: match.createdAt,
+            });
+          }
+        }
+        
+        if (toCreate.length > 0) {
+          await db.xpTransaction.createMany({ data: toCreate });
+          const totalReconstructedXp = toCreate.reduce((sum, tx) => sum + tx.amount, 0);
+          finalUser = await db.user.update({
+            where: { id: user.id },
+            data: { xp: totalReconstructedXp },
+          });
+        }
+      }
+
       const isAdmin = await getAdminStatus();
-      return NextResponse.json({ authenticated: true, user: { ...user, isAdmin } });
+      return NextResponse.json({ authenticated: true, user: { ...finalUser, isAdmin } });
     }
     return NextResponse.json({ authenticated: false, user: null });
   } catch (error) {

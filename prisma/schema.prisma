@@ -32,9 +32,21 @@ model User {
   swipes        Swipe[]
   savedMatches  SavedMatch[]
   notifications Notification[]
+  xpTransactions XpTransaction[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model XpTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  action    String   // e.g. "SAVE_ISSUE", "OPEN_ISSUE", "SUBMIT_PR", "MERGE_PR"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Repository {

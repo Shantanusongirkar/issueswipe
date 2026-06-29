@@ -138,9 +138,13 @@ export default function SavedMatches() {
         }
         
         window.dispatchEvent(new Event('pathnameChange'));
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to verify contribution status on GitHub.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(err.message || 'An error occurred during PR verification.');
     }
   };
 
