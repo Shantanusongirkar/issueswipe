@@ -188,43 +188,6 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden glass border-b border-dark-border px-4 pt-2 pb-4 space-y-2 animate-in fade-in slide-in-from-top duration-200">
-<<<<<<< Updated upstream
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.name}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20'
-                    : 'text-text-secondary hover:bg-bg-pill hover:text-text-primary'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{link.name}</span>
-              </Link>
-            );
-          })}
-          <div className="pt-2 border-t border-dark-border flex items-center justify-between">
-            <Link
-              href="/profile"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center space-x-2.5"
-            >
-              {session.avatar ? (
-                <img src={session.avatar} alt={session.username} className="h-8 w-8 rounded-full" />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-bg-pill border border-dark-border flex items-center justify-center text-xs font-bold text-text-primary">
-                  {session.username[0]?.toUpperCase()}
-                </div>
-              )}
-              <div className="text-left">
-                <p className="text-xs font-semibold text-text-primary">@{session.username}</p>
-                <p className="text-[10px] text-text-tertiary">{session.rank}</p>
-=======
           {session ? (
             <>
               {navLinks.map((link) => {
@@ -238,7 +201,7 @@ export default function Navbar() {
                     className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                       isActive
                         ? 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20'
-                        : 'text-gray-400 hover:bg-dark-border hover:text-white'
+                        : 'text-text-secondary hover:bg-bg-pill hover:text-text-primary'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -255,13 +218,13 @@ export default function Navbar() {
                   {session.avatar ? (
                     <img src={session.avatar} alt={session.username} className="h-8 w-8 rounded-full" />
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-dark-border flex items-center justify-center text-xs font-bold">
+                    <div className="h-8 w-8 rounded-full bg-bg-pill border border-dark-border flex items-center justify-center text-xs font-bold text-text-primary">
                       {session.username[0]?.toUpperCase()}
                     </div>
                   )}
                   <div className="text-left">
-                    <p className="text-xs font-semibold text-gray-200">@{session.username}</p>
-                    <p className="text-[10px] text-gray-400">{session.rank}</p>
+                    <p className="text-xs font-semibold text-text-primary">@{session.username}</p>
+                    <p className="text-[10px] text-text-tertiary">{session.rank}</p>
                   </div>
                 </Link>
                 <button
@@ -274,7 +237,6 @@ export default function Navbar() {
                   <LogOut className="h-4 w-4" />
                   <span>Logout</span>
                 </button>
->>>>>>> Stashed changes
               </div>
             </>
           ) : (
