@@ -63,19 +63,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         const sessionData = await sessionRes.json();
         if (sessionData.authenticated) {
           setSessionUser(sessionData.user);
-        }
-      }
-      
-      const matchesRes = await fetch('/api/matches');
-      if (matchesRes.ok) {
-        const matchesData = await matchesRes.json();
-        setRecentMatches(matchesData.slice(0, 3)); // show top 3
-      }
+          
+          // Only fetch matches and notifications if the user is authenticated
+          const matchesRes = await fetch('/api/matches');
+          if (matchesRes.ok) {
+            const matchesData = await matchesRes.json();
+            setRecentMatches(matchesData.slice(0, 3)); // show top 3
+          }
 
-      const notifRes = await fetch('/api/notifications');
-      if (notifRes.ok) {
-        const notifData = await notifRes.json();
-        setNotifications(Array.isArray(notifData) ? notifData : []);
+          const notifRes = await fetch('/api/notifications');
+          if (notifRes.ok) {
+            const notifData = await notifRes.json();
+            setNotifications(Array.isArray(notifData) ? notifData : []);
+          }
+        } else {
+          setSessionUser(null);
+          setRecentMatches([]);
+          setNotifications([]);
+        }
       }
     } catch (err) {
       console.error('Error fetching layout data:', err);
