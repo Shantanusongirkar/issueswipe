@@ -94,10 +94,14 @@ export async function POST(request: Request) {
     });
 
     if (!user) {
+      // Generate a unique username by appending part of the UID to prevent collisions
+      const baseName = decodedIdToken.name || decodedIdToken.email?.split('@')[0] || 'user';
+      const uniqueUsername = `${baseName.replace(/\\s+/g, '')}_${decodedIdToken.uid.slice(0, 5)}`;
+
       user = await db.user.create({
         data: {
           githubId: decodedIdToken.uid,
-          username: decodedIdToken.name || decodedIdToken.email?.split('@')[0] || `user_${decodedIdToken.uid.slice(0, 5)}`,
+          username: uniqueUsername,
           avatar: decodedIdToken.picture || null,
           bio: "New contributor on IssueSwipe.",
           preferredLanguages: JSON.stringify([]),
@@ -109,7 +113,6 @@ export async function POST(request: Request) {
       await db.user.update({
         where: { id: user.id },
         data: {
-          username: decodedIdToken.name || user.username,
           avatar: decodedIdToken.picture || user.avatar,
         }
       });
